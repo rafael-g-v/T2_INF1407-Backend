@@ -84,6 +84,43 @@ class PerfilUpdateSerializer(serializers.ModelSerializer):
         fields = ["nome", "sobrenome", "matricula"]
 
 
+class ChangePasswordSerializer(serializers.Serializer):
+    """
+    Serializer para troca de senha do usuário autenticado.
+
+    Valida que a senha atual está correta e que a nova senha
+    atende às políticas de segurança do Django.
+    """
+
+    senha_atual = serializers.CharField(
+        write_only=True,
+        style={"input_type": "password"},
+        label="Senha atual",
+    )
+    nova_senha = serializers.CharField(
+        write_only=True,
+        style={"input_type": "password"},
+        label="Nova senha",
+    )
+    nova_senha2 = serializers.CharField(
+        write_only=True,
+        style={"input_type": "password"},
+        label="Confirmar nova senha",
+    )
+
+    def validate(self, attrs):
+        """Valida que as novas senhas coincidem e atendem às políticas do Django."""
+        if attrs["nova_senha"] != attrs["nova_senha2"]:
+            raise serializers.ValidationError(
+                {"nova_senha2": "As senhas não coincidem."}
+            )
+        try:
+            validate_password(attrs["nova_senha"])
+        except DjangoValidationError as e:
+            raise serializers.ValidationError({"nova_senha": list(e.messages)})
+        return attrs
+
+
 class UsuarioResumoSerializer(serializers.ModelSerializer):
     """Representação compacta de um usuário para uso em relacionamentos."""
 

@@ -9,7 +9,7 @@ Estrutura de URLs:
         POST   /api/auth/logout/
         GET    /api/auth/perfil/
         PATCH  /api/auth/perfil/
-
+        POST   /api/auth/trocar-senha/
         POST   /api/auth/token/refresh/       (simplejwt refresh)
 
     Projetos (requer autenticação):
@@ -97,6 +97,13 @@ urlpatterns = [
         "auth/perfil/",
         auth_view({"get": "perfil", "patch": "perfil"}),
         name="auth-perfil",
+    ),
+
+    # Troca de senha (requer autenticação)
+    path(
+        "auth/trocar-senha/",
+        auth_view({"post": "trocar_senha"}),
+        name="auth-trocar-senha",
     ),
 
     # Projetos (via router)

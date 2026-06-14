@@ -2,7 +2,7 @@
 Views da API de gerenciamento de projetos acadêmicos.
 
 Organização:
-    - AuthViewSet: registro, login, logout, perfil.
+    - AuthViewSet: registro, login, logout, perfil, troca de senha.
     - ProjetoViewSet: CRUD de projetos.
     - MembroProjetoViewSet: listagem e remoção de membros.
     - ConviteViewSet: envio, listagem e resposta de convites.
@@ -22,6 +22,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from .models import Convite, MembroProjeto, Observacao, Projeto, Tarefa
 from .permissions import EhAutorOuLider, EhLiderDoProjeto, EhMembroDoProjeto
 from .serializers import (
+    ChangePasswordSerializer,
     ConviteCreateSerializer,
     ConviteSerializer,
     MembroProjetoSerializer,
@@ -86,7 +87,7 @@ class AuthViewSet(viewsets.ViewSet):
     """
     Endpoints de autenticação e gerenciamento de conta.
 
-    Inclui registro, login, logout e leitura/edição de perfil.
+    Inclui registro, login, logout, leitura/edição de perfil e troca de senha.
     """
 
     @extend_schema(
@@ -176,6 +177,56 @@ class AuthViewSet(viewsets.ViewSet):
             serializer.is_valid(raise_exception=True)
             serializer.save()
         return Response(PerfilSerializer(perfil, context={"request": request}).data)
+
+    @extend_schema(
+        summary="Trocar senha do usuário autenticado",
+        request=ChangePasswordSerializer,
+        responses={
+            200: {"description": "Senha alterada com sucesso. Novos tokens JWT retornados."},
+            400: {"description": "Senha atual incorreta ou nova senha inválida."},
+        },
+    )
+    def trocar_senha(self, request):
+        """
+        Altera a senha do usuário autenticado.
+
+        Recebe a senha atual para confirmação e a nova senha (com confirmação).
+        Em caso de sucesso, retorna um novo par de tokens JWT — o frontend deve
+        substituir os tokens armazenados para manter a sessão ativa.
+
+        Requer autenticação.
+        """
+        serializer = ChangePasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = request.user
+
+        # Verifica se a senha atual fornecida está correta
+        if not user.check_password(serializer.validated_data["senha_atual"]):
+            return Response(
+                {"erro": "Senha atual incorreta."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Atualiza a senha
+        user.set_password(serializer.validated_data["nova_senha"])
+        user.save()
+
+        # Blacklist do refresh token atual antes de emitir novos tokens
+        try:
+            refresh_token = request.data.get("refresh_token")
+            if refresh_token:
+                RefreshToken(refresh_token).blacklist()
+        except Exception:
+            pass  # Se falhar, não bloqueia — o access token expira normalmente em 1h
+
+        # Retorna novos tokens para que o frontend atualize a sessão sem forçar logout
+        return Response(
+            {
+                "mensagem": "Senha alterada com sucesso.",
+                "tokens": _get_tokens(user),
+            }
+        )
 
 
 @extend_schema(tags=["Projetos"])
