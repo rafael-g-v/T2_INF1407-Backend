@@ -1,10 +1,3 @@
-"""
-Serializers do app core.
-
-Cada serializer corresponde a um modelo e define a representação JSON
-usada nas respostas e na validação das requisições.
-"""
-
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -36,6 +29,14 @@ class RegistroSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ["username", "email", "password", "password2", "nome", "sobrenome", "matricula"]
+
+    def validate_matricula(self, value):
+        """Verifica se a matrícula já está em uso antes de criar o usuário."""
+        if Perfil.objects.filter(matricula=value).exists():
+            raise serializers.ValidationError(
+                f"A matrícula '{value}' já está cadastrada. Utilize outra matrícula ou faça login com a conta existente."
+            )
+        return value
 
     def validate(self, attrs):
         """Valida que as senhas coincidem e atendem às políticas do Django."""
@@ -85,12 +86,7 @@ class PerfilUpdateSerializer(serializers.ModelSerializer):
 
 
 class ChangePasswordSerializer(serializers.Serializer):
-    """
-    Serializer para troca de senha do usuário autenticado.
-
-    Valida que a senha atual está correta e que a nova senha
-    atende às políticas de segurança do Django.
-    """
+    """Serializer para troca de senha do usuário autenticado."""
 
     senha_atual = serializers.CharField(
         write_only=True,

@@ -1,13 +1,5 @@
 """
 Views da API de gerenciamento de projetos acadêmicos.
-
-Organização:
-    - AuthViewSet: registro, login, logout, perfil, troca de senha.
-    - ProjetoViewSet: CRUD de projetos.
-    - MembroProjetoViewSet: listagem e remoção de membros.
-    - ConviteViewSet: envio, listagem e resposta de convites.
-    - TarefaViewSet: CRUD de tarefas dentro de um projeto.
-    - ObservacaoViewSet: CRUD de observações dentro de uma tarefa.
 """
 
 from django.contrib.auth.models import User
@@ -39,56 +31,23 @@ from .serializers import (
 
 
 def _get_tokens(user):
-    """
-    Gera e retorna tokens JWT (access + refresh) para o usuário.
-
-    Args:
-        user (User): Usuário autenticado.
-
-    Returns:
-        dict: {'refresh': str, 'access': str}
-    """
     refresh = RefreshToken.for_user(user)
     return {"refresh": str(refresh), "access": str(refresh.access_token)}
 
 
 def _is_lider(user, projeto):
-    """
-    Verifica se o usuário é líder do projeto.
-
-    Args:
-        user (User): Usuário a verificar.
-        projeto (Projeto): Projeto alvo.
-
-    Returns:
-        bool: True se o papel for 'L'.
-    """
     return MembroProjeto.objects.filter(
         usuario=user, projeto=projeto, papel="L"
     ).exists()
 
 
 def _is_membro(user, projeto):
-    """
-    Verifica se o usuário é membro (qualquer papel) do projeto.
-
-    Args:
-        user (User): Usuário a verificar.
-        projeto (Projeto): Projeto alvo.
-
-    Returns:
-        bool: True se existir qualquer MembroProjeto para o par.
-    """
     return MembroProjeto.objects.filter(usuario=user, projeto=projeto).exists()
 
 
 @extend_schema(tags=["Autenticação"])
 class AuthViewSet(viewsets.ViewSet):
-    """
-    Endpoints de autenticação e gerenciamento de conta.
-
-    Inclui registro, login, logout, leitura/edição de perfil e troca de senha.
-    """
+    """Endpoints de autenticação e gerenciamento de conta."""
 
     @extend_schema(
         summary="Registrar novo usuário",
@@ -96,11 +55,6 @@ class AuthViewSet(viewsets.ViewSet):
         responses={201: {"description": "Usuário criado com sucesso e tokens retornados."}},
     )
     def registrar(self, request):
-        """
-        Cria um novo usuário e seu perfil acadêmico.
-
-        Retorna tokens JWT para que o frontend já realize o login automaticamente.
-        """
         serializer = RegistroSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
@@ -118,11 +72,6 @@ class AuthViewSet(viewsets.ViewSet):
         responses={200: {"description": "Tokens JWT retornados."}, 401: {"description": "Credenciais inválidas."}},
     )
     def login(self, request):
-        """
-        Autentica o usuário com username e senha.
-
-        Retorna tokens JWT (access e refresh).
-        """
         from django.contrib.auth import authenticate
 
         username = request.data.get("username")
@@ -143,11 +92,6 @@ class AuthViewSet(viewsets.ViewSet):
         responses={200: {"description": "Token invalidado com sucesso."}},
     )
     def logout(self, request):
-        """
-        Invalida (blacklist) o refresh token fornecido.
-
-        Requer autenticação.
-        """
         try:
             token = RefreshToken(request.data.get("refresh"))
             token.blacklist()
@@ -163,12 +107,6 @@ class AuthViewSet(viewsets.ViewSet):
         responses={200: PerfilSerializer},
     )
     def perfil(self, request):
-        """
-        GET: retorna os dados do perfil do usuário autenticado.
-        PATCH: atualiza nome, sobrenome ou matrícula.
-
-        Requer autenticação.
-        """
         perfil = request.user.perfil
         if request.method == "PATCH":
             serializer = PerfilUpdateSerializer(
@@ -187,40 +125,27 @@ class AuthViewSet(viewsets.ViewSet):
         },
     )
     def trocar_senha(self, request):
-        """
-        Altera a senha do usuário autenticado.
-
-        Recebe a senha atual para confirmação e a nova senha (com confirmação).
-        Em caso de sucesso, retorna um novo par de tokens JWT — o frontend deve
-        substituir os tokens armazenados para manter a sessão ativa.
-
-        Requer autenticação.
-        """
         serializer = ChangePasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         user = request.user
 
-        # Verifica se a senha atual fornecida está correta
         if not user.check_password(serializer.validated_data["senha_atual"]):
             return Response(
                 {"erro": "Senha atual incorreta."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Atualiza a senha
         user.set_password(serializer.validated_data["nova_senha"])
         user.save()
 
-        # Blacklist do refresh token atual antes de emitir novos tokens
         try:
             refresh_token = request.data.get("refresh_token")
             if refresh_token:
                 RefreshToken(refresh_token).blacklist()
         except Exception:
-            pass  # Se falhar, não bloqueia — o access token expira normalmente em 1h
+            pass
 
-        # Retorna novos tokens para que o frontend atualize a sessão sem forçar logout
         return Response(
             {
                 "mensagem": "Senha alterada com sucesso.",
@@ -239,23 +164,16 @@ class AuthViewSet(viewsets.ViewSet):
     destroy=extend_schema(summary="Excluir projeto (apenas líder)"),
 )
 class ProjetoViewSet(viewsets.ModelViewSet):
-    """
-    CRUD completo de Projetos.
-
-    O usuário autenticado só vê projetos dos quais é membro.
-    Apenas o Líder pode editar ou excluir.
-    """
+    """CRUD completo de Projetos."""
 
     permission_classes = [IsAuthenticated]
 
     def get_serializer_class(self):
-        """Retorna serializer adequado para a ação."""
         if self.action in ("create", "update", "partial_update"):
             return ProjetoCreateUpdateSerializer
         return ProjetoSerializer
 
     def get_queryset(self):
-        """Retorna apenas projetos dos quais o usuário é membro."""
         return (
             Projeto.objects.filter(membros__usuario=self.request.user)
             .distinct()
@@ -264,11 +182,9 @@ class ProjetoViewSet(viewsets.ModelViewSet):
         )
 
     def perform_create(self, serializer):
-        """Salva o projeto com o criador sendo o usuário autenticado."""
         serializer.save(criado_por=self.request.user)
 
     def update(self, request, *args, **kwargs):
-        """Apenas o líder pode atualizar o projeto."""
         projeto = self.get_object()
         if not _is_lider(request.user, projeto):
             return Response(
@@ -278,7 +194,6 @@ class ProjetoViewSet(viewsets.ModelViewSet):
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
-        """Apenas o líder pode excluir o projeto."""
         projeto = self.get_object()
         if not _is_lider(request.user, projeto):
             return Response(
@@ -290,27 +205,11 @@ class ProjetoViewSet(viewsets.ModelViewSet):
 
 @extend_schema(tags=["Membros"])
 class MembroProjetoViewSet(viewsets.ViewSet):
-    """
-    Gerenciamento de membros de um projeto.
-
-    Lista todos os membros ou remove um membro específico (apenas líder).
-    """
+    """Gerenciamento de membros de um projeto."""
 
     permission_classes = [IsAuthenticated]
 
     def _get_projeto(self, projeto_pk):
-        """
-        Retorna o projeto ou lança 404.
-
-        Args:
-            projeto_pk (int): PK do projeto.
-
-        Returns:
-            Projeto: Projeto encontrado.
-
-        Raises:
-            Http404: Se não existir ou o usuário não for membro.
-        """
         from django.shortcuts import get_object_or_404
         projeto = get_object_or_404(Projeto, pk=projeto_pk)
         if not _is_membro(self.request.user, projeto):
@@ -323,7 +222,6 @@ class MembroProjetoViewSet(viewsets.ViewSet):
         responses={200: MembroProjetoSerializer(many=True)},
     )
     def list(self, request, projeto_pk=None):
-        """Lista todos os membros do projeto especificado."""
         projeto = self._get_projeto(projeto_pk)
         membros = MembroProjeto.objects.filter(projeto=projeto).select_related(
             "usuario__perfil"
@@ -335,12 +233,6 @@ class MembroProjetoViewSet(viewsets.ViewSet):
         responses={204: None},
     )
     def destroy(self, request, pk=None, projeto_pk=None):
-        """
-        Remove o membro com id=pk do projeto.
-
-        Apenas o líder pode remover membros.
-        O líder não pode se auto-remover se for o único líder.
-        """
         from django.shortcuts import get_object_or_404
         projeto = self._get_projeto(projeto_pk)
         if not _is_lider(request.user, projeto):
@@ -349,7 +241,6 @@ class MembroProjetoViewSet(viewsets.ViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
         membro = get_object_or_404(MembroProjeto, pk=pk, projeto=projeto)
-        # Impede remoção do único líder
         if membro.papel == "L":
             lideres = MembroProjeto.objects.filter(projeto=projeto, papel="L").count()
             if lideres <= 1:
@@ -363,11 +254,7 @@ class MembroProjetoViewSet(viewsets.ViewSet):
 
 @extend_schema(tags=["Convites"])
 class ConviteViewSet(viewsets.ViewSet):
-    """
-    Gerenciamento de convites de projeto.
-
-    O líder envia convites; o usuário convidado aceita ou recusa.
-    """
+    """Gerenciamento de convites de projeto."""
 
     permission_classes = [IsAuthenticated]
 
@@ -376,7 +263,6 @@ class ConviteViewSet(viewsets.ViewSet):
         responses={200: ConviteSerializer(many=True)},
     )
     def list(self, request):
-        """Lista todos os convites recebidos pelo usuário autenticado."""
         convites = (
             Convite.objects.filter(convidado=request.user)
             .select_related(
@@ -394,11 +280,6 @@ class ConviteViewSet(viewsets.ViewSet):
         responses={201: ConviteSerializer},
     )
     def create_for_projeto(self, request, projeto_pk=None):
-        """
-        Envia convite de entrada em um projeto.
-
-        Apenas o líder do projeto pode convidar novos membros.
-        """
         from django.shortcuts import get_object_or_404
         projeto = get_object_or_404(Projeto, pk=projeto_pk)
         if not _is_lider(request.user, projeto):
@@ -410,14 +291,12 @@ class ConviteViewSet(viewsets.ViewSet):
         serializer.is_valid(raise_exception=True)
         convidado = serializer.validated_data["username_convidado"]
 
-        # Verifica se já é membro
         if _is_membro(convidado, projeto):
             return Response(
                 {"erro": "Este usuário já é membro do projeto."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Reutiliza convite recusado ou cria novo
         convite, criado = Convite.objects.get_or_create(
             projeto=projeto,
             convidado=convidado,
@@ -444,7 +323,6 @@ class ConviteViewSet(viewsets.ViewSet):
         responses={200: ConviteSerializer(many=True)},
     )
     def list_for_projeto(self, request, projeto_pk=None):
-        """Lista os convites de um projeto específico."""
         from django.shortcuts import get_object_or_404
         projeto = get_object_or_404(Projeto, pk=projeto_pk)
         if not _is_membro(request.user, projeto):
@@ -467,12 +345,6 @@ class ConviteViewSet(viewsets.ViewSet):
         responses={200: {"description": "Convite aceito."}},
     )
     def aceitar(self, request, pk=None):
-        """
-        Aceita um convite pendente.
-
-        Apenas o usuário convidado pode aceitar.
-        Aceitar adiciona o usuário como Membro do projeto.
-        """
         from django.shortcuts import get_object_or_404
         convite = get_object_or_404(
             Convite, pk=pk, convidado=request.user, status="P"
@@ -490,11 +362,6 @@ class ConviteViewSet(viewsets.ViewSet):
         responses={200: {"description": "Convite recusado."}},
     )
     def recusar(self, request, pk=None):
-        """
-        Recusa um convite pendente.
-
-        Apenas o usuário convidado pode recusar.
-        """
         from django.shortcuts import get_object_or_404
         convite = get_object_or_404(
             Convite, pk=pk, convidado=request.user, status="P"
@@ -515,29 +382,20 @@ class ConviteViewSet(viewsets.ViewSet):
     destroy=extend_schema(summary="Excluir tarefa (apenas líder)"),
 )
 class TarefaViewSet(viewsets.ModelViewSet):
-    """
-    CRUD completo de Tarefas de um Projeto.
-
-    Apenas membros do projeto têm acesso.
-    Criar e excluir requerem papel de Líder.
-    Qualquer membro pode atualizar o status da tarefa.
-    """
+    """CRUD completo de Tarefas de um Projeto."""
 
     permission_classes = [IsAuthenticated]
 
     def get_serializer_class(self):
-        """Retorna serializer adequado para a ação."""
         if self.action in ("create", "update", "partial_update"):
             return TarefaCreateUpdateSerializer
         return TarefaSerializer
 
     def _get_projeto(self):
-        """Retorna o projeto pai da URL ou 404."""
         from django.shortcuts import get_object_or_404
         return get_object_or_404(Projeto, pk=self.kwargs["projeto_pk"])
 
     def get_queryset(self):
-        """Retorna tarefas do projeto se o usuário for membro."""
         projeto = self._get_projeto()
         if not _is_membro(self.request.user, projeto):
             return Tarefa.objects.none()
@@ -547,7 +405,6 @@ class TarefaViewSet(viewsets.ModelViewSet):
         )
 
     def create(self, request, *args, **kwargs):
-        """Apenas o líder pode criar tarefas."""
         projeto = self._get_projeto()
         if not _is_lider(request.user, projeto):
             return Response(
@@ -557,7 +414,6 @@ class TarefaViewSet(viewsets.ModelViewSet):
         serializer = TarefaCreateUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # Valida que o responsável (se informado) é membro do projeto
         responsavel = serializer.validated_data.get("responsavel")
         if responsavel and not _is_membro(responsavel, projeto):
             return Response(
@@ -571,17 +427,13 @@ class TarefaViewSet(viewsets.ModelViewSet):
         )
 
     def update(self, request, *args, **kwargs):
-        """
-        Qualquer membro pode atualizar status e responsável.
-        Apenas o líder pode alterar título, descrição e prazo.
-        """
         projeto = self._get_projeto()
         if not _is_membro(request.user, projeto):
             return Response(
                 {"erro": "Você não é membro deste projeto."},
                 status=status.HTTP_403_FORBIDDEN,
             )
-        # Campos restritos ao líder
+
         campos_lider = {"titulo", "descricao", "prazo"}
         if not _is_lider(request.user, projeto) and (
             campos_lider & set(request.data.keys())
@@ -590,10 +442,42 @@ class TarefaViewSet(viewsets.ModelViewSet):
                 {"erro": "Apenas o líder pode alterar título, descrição e prazo."},
                 status=status.HTTP_403_FORBIDDEN,
             )
-        return super().update(request, *args, **kwargs)
+
+        # Captura o status atual antes de salvar para detectar mudança
+        tarefa_antes = self.get_object()
+        status_antes = tarefa_antes.status
+
+        resposta = super().update(request, *args, **kwargs)
+
+        # Se o status mudou, cria observação automática
+        if "status" in request.data:
+            novo_status = request.data["status"]
+            if novo_status != status_antes:
+                status_labels = {
+                    "P": "Pendente",
+                    "E": "Em andamento",
+                    "C": "Concluída",
+                }
+                papel = "Líder" if _is_lider(request.user, projeto) else "Membro"
+                if hasattr(request.user, "perfil"):
+                    nome_completo = f"{request.user.perfil.nome} {request.user.perfil.sobrenome}"
+                else:
+                    nome_completo = request.user.username
+                texto_obs = (
+                    f'Status alterado de "{status_labels.get(status_antes, status_antes)}" '
+                    f'para "{status_labels.get(novo_status, novo_status)}" '
+                    f"por {nome_completo} ({papel})."
+                )
+                tarefa_atualizada = self.get_object()
+                Observacao.objects.create(
+                    tarefa=tarefa_atualizada,
+                    autor=request.user,
+                    texto=texto_obs,
+                )
+
+        return resposta
 
     def destroy(self, request, *args, **kwargs):
-        """Apenas o líder pode excluir tarefas."""
         projeto = self._get_projeto()
         if not _is_lider(request.user, projeto):
             return Response(
@@ -612,24 +496,17 @@ class TarefaViewSet(viewsets.ModelViewSet):
     destroy=extend_schema(summary="Excluir observação (autor ou líder)"),
 )
 class ObservacaoViewSet(viewsets.ModelViewSet):
-    """
-    CRUD completo de Observações de uma Tarefa.
-
-    Qualquer membro do projeto pode criar observações.
-    Edição e exclusão são restritas ao autor ou ao líder do projeto.
-    """
+    """CRUD completo de Observações de uma Tarefa."""
 
     permission_classes = [IsAuthenticated]
     http_method_names = ["get", "post", "patch", "delete", "head", "options"]
 
     def get_serializer_class(self):
-        """Retorna serializer adequado para a ação."""
         if self.action in ("create", "partial_update"):
             return ObservacaoCreateUpdateSerializer
         return ObservacaoSerializer
 
     def _get_tarefa(self):
-        """Retorna a tarefa pai ou 404."""
         from django.shortcuts import get_object_or_404
         return get_object_or_404(
             Tarefa,
@@ -638,12 +515,10 @@ class ObservacaoViewSet(viewsets.ModelViewSet):
         )
 
     def get_queryset(self):
-        """Retorna observações da tarefa se o usuário for membro do projeto."""
         tarefa = self._get_tarefa()
         return Observacao.objects.filter(tarefa=tarefa).select_related("autor__perfil")
 
     def create(self, request, *args, **kwargs):
-        """Cria uma nova observação na tarefa."""
         tarefa = self._get_tarefa()
         serializer = ObservacaoCreateUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -654,7 +529,6 @@ class ObservacaoViewSet(viewsets.ModelViewSet):
         )
 
     def update(self, request, *args, **kwargs):
-        """Apenas o autor ou líder pode editar."""
         obs = self.get_object()
         projeto = obs.tarefa.projeto
         eh_autor = obs.autor == request.user
@@ -667,7 +541,6 @@ class ObservacaoViewSet(viewsets.ModelViewSet):
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
-        """Apenas o autor ou líder pode excluir."""
         obs = self.get_object()
         projeto = obs.tarefa.projeto
         eh_autor = obs.autor == request.user
