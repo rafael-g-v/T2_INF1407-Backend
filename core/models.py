@@ -272,7 +272,7 @@ class Observacao(models.Model):
         verbose_name_plural = "Observações"
         ordering = ["criado_em"]
 
-    def __str__(self):  # noqa: D105
+    def __str__(self):
         return (
             f"Obs. de {self.autor.username} em "
             f"{self.criado_em.strftime('%d/%m/%Y %H:%M')}"

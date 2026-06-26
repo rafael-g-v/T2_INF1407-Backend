@@ -1,7 +1,7 @@
 """
 Signals do app core.
 
-  - post_save em Projeto → cria automaticamente MembroProjeto com papel 'L'
+  - post_save em Projeto cria automaticamente MembroProjeto com papel 'L'
     para o usuário que criou o projeto.
 """
 

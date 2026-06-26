@@ -1,51 +1,6 @@
 """
 Rotas da API do app core.
 
-Estrutura de URLs:
-
-    Autenticação:
-        POST   /api/auth/registrar/
-        POST   /api/auth/login/
-        POST   /api/auth/logout/
-        GET    /api/auth/perfil/
-        PATCH  /api/auth/perfil/
-        POST   /api/auth/trocar-senha/
-        POST   /api/auth/token/refresh/       (simplejwt refresh)
-
-    Projetos (requer autenticação):
-        GET    /api/projetos/
-        POST   /api/projetos/
-        GET    /api/projetos/{id}/
-        PUT    /api/projetos/{id}/
-        PATCH  /api/projetos/{id}/
-        DELETE /api/projetos/{id}/
-
-    Membros de projeto:
-        GET    /api/projetos/{id}/membros/
-        DELETE /api/projetos/{id}/membros/{membro_id}/
-
-    Convites por projeto:
-        GET    /api/projetos/{id}/convites/
-        POST   /api/projetos/{id}/convites/
-
-    Convites do usuário:
-        GET    /api/convites/
-        POST   /api/convites/{id}/aceitar/
-        POST   /api/convites/{id}/recusar/
-
-    Tarefas:
-        GET    /api/projetos/{id}/tarefas/
-        POST   /api/projetos/{id}/tarefas/
-        GET    /api/projetos/{id}/tarefas/{tid}/
-        PUT    /api/projetos/{id}/tarefas/{tid}/
-        PATCH  /api/projetos/{id}/tarefas/{tid}/
-        DELETE /api/projetos/{id}/tarefas/{tid}/
-
-    Observações:
-        GET    /api/projetos/{id}/tarefas/{tid}/observacoes/
-        POST   /api/projetos/{id}/tarefas/{tid}/observacoes/
-        PATCH  /api/projetos/{id}/tarefas/{tid}/observacoes/{oid}/
-        DELETE /api/projetos/{id}/tarefas/{tid}/observacoes/{oid}/
 """
 
 from django.urls import path, include
