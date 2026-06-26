@@ -223,4 +223,4 @@ Swagger UI e ReDoc ativos e documentando todos os endpoints. Admin Django com in
 
 ---
 
-**Link da API:**
+**Link da API:**https://rafd.pythonanywhere.com/api/docs/
