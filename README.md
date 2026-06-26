@@ -4,33 +4,25 @@
 
 ---
 
-## Índice
-
-- [Descrição do Projeto](#descrição-do-projeto)
-- [Instalação Local](#instalação-local)
-- [Documentação da API (Swagger)](#documentação-da-api-swagger)
-- [Endpoints Principais](#endpoints-principais)
-- [Manual do Usuário / Administrador](#manual-do-usuário--administrador)
-- [O que funcionou](#o-que-funcionou)
-- [O que não funcionou](#o-que-não-funcionou)
-
----
-
 ## Descrição do Projeto
 
 **Acadêmico** é uma API REST construída com Django e Django REST Framework para gerenciamento de projetos acadêmicos colaborativos. Estudantes criam projetos, convidam colegas, atribuem tarefas e acompanham o andamento via observações.
 
-### Tecnologias utilizadas
+---
 
-| Tecnologia | Versão | Finalidade |
-|---|---|---|
-| Django | 5.0.6 | Framework principal |
-| Django REST Framework | 3.15.2 | Construção da API REST |
-| SimpleJWT | 5.3.1 | Autenticação JWT |
-| drf-spectacular | 0.27.2 | Documentação Swagger / OpenAPI |
-| django-cors-headers | 4.4.0 | Permissões CORS para o frontend |
-| WhiteNoise | 6.7.0 | Servir arquivos estáticos |
-| Gunicorn | 22.0.0 | Servidor WSGI para produção |
+### Tecnologias utilizadas
+- Django 5.0.6
+- Django REST Framework 3.15.2
+- SimpleJWT 5.3.1
+- drf-spectacular 0.27.2 Documentação Swagger/OpenAPI
+- django-cors-headers 4.4.0 para as permissões CORS para o frontend
+- WhiteNoise 6.7.0 Servir arquivos estáticos
+- Gunicorn 22.0.0 Servidor WSGI para produção 
+- Claude (auxílio no backend)
+- DeepSeek (auxílio no front-end)
+- Copilot (auxílio nos comentários e mensagens de commit)
+
+---
 
 ### Escopo implementado
 
